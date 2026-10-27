@@ -34,16 +34,16 @@ exports.handler = async (event) => {
       return {id:x.itemId,title:x.title||'Untitled listing',image:x.image?.imageUrl||'',url:x.itemWebUrl||'',price,shipping,condition:x.condition||'Not specified',cond, currency:x.price?.currency||'USD'};
     }).filter(x=>x.price!==null && x.shipping!==null && x.currency==='USD' && x.url && x.price+x.shipping<=budget && x.shipping<=maxShipping && (condition==='any'||(condition==='used' ? (x.cond.includes('used')||x.cond.includes('pre-owned')||x.cond.includes('refurbished')) : x.cond.includes('new'))));
     // Compare against the median of returned comparable listings, not a claimed market-wide benchmark.
-    const prices = listings.map(x=>x.price).sort((a,b)=>a-b);
-    const median = prices.length ? (prices[Math.floor((prices.length-1)/2)]+prices[Math.floor(prices.length/2)])/2 : 0;
+    const totals = listings.map(x=>x.price+x.shipping).sort((a,b)=>a-b);
+    const median = totals.length ? (totals[Math.floor((totals.length-1)/2)]+totals[Math.floor(totals.length/2)])/2 : 0;
     const scored = listings.map(x=>{
       const total=x.price+x.shipping;
       const priceScore=Math.max(0,100*(1-total/budget));
       const conditionScore=x.cond.includes('new')?100:x.cond.includes('refurbished')?80:65;
       const shippingScore=maxShipping===0?(x.shipping===0?100:0):Math.max(0,100*(1-x.shipping/maxShipping));
       const score=Math.round((0.6*priceScore+0.25*conditionScore+0.15*shippingScore)*10)/10;
-      return {...x,total,score,savingsPercent:median>0?Math.round((median-x.price)/median*1000)/10:null};
+      return {...x,total,score,vsMedianPercent:median>0?Math.round((total-median)/median*1000)/10:null};
     }).sort((a,b)=>b.score-a.score).slice(0,5);
-    return reply(200,{results:scored,eligibleCount:listings.length,medianPrice:median,notes:'Listings without explicit shipping costs are excluded. Savings are relative to the median of eligible returned listings. Scores are illustrative.'});
+    return reply(200,{results:scored,eligibleCount:listings.length,medianTotal:median,notes:'Listings without explicit shipping costs are excluded. Comparisons are relative to the median total price (item + shipping) of eligible returned listings. Scores are illustrative.'});
   } catch(e){return reply(502,{error:'Unable to connect to eBay right now. Please try again.'});}
 };
